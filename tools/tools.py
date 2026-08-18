@@ -9,7 +9,7 @@ from tools.tool_definition import SearchKnowledgeBaseInput
 knowledge_base = KnowledgeBase(
     documents_dir="data/documents",
     retrieval_k=3,
-    retrieval_threshold=0.5,
+    retrieval_threshold=0.35,
 )
 
 

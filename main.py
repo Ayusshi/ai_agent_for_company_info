@@ -1,26 +1,32 @@
-from knowledge.knowledge_base import KnowledgeBase
+from agent.agent import Agent
 
 
-knowledge_base = KnowledgeBase(
-    documents_dir="data/documents",
-    retrieval_k=3,
-    retrieval_threshold=0.5,
-)
+def main():
+
+    agent = Agent()
+
+    print("\n" + "=" * 60)
+    print("NexaCore Company Information Agent")
+    print("=" * 60)
+
+    while True:
+
+        user_input = input("\nYou: ")
+
+        if user_input.lower() in {"exit", "quit"}:
+            print("\nGoodbye!")
+            break
+
+        try:
+
+            answer = agent.run(user_input)
+
+            print(f"\nAgent: {answer}")
+
+        except Exception as e:
+
+            print(f"\nError: {e}")
 
 
-query = "How many days of annual leave do employees receive?"
-
-results = knowledge_base.search(query)
-
-
-print("\nRetrieved Results:")
-print("-" * 60)
-
-for rank, result in enumerate(results, start=1):
-
-    print(f"\nRank: {rank}")
-    print(f"Score: {result['score']:.4f}")
-    print(f"Source: {result['source']}")
-    print(f"Page: {result['page']}")
-    print(f"Chunk ID: {result['chunk_id']}")
-    print(f"Text: {result['text']}")
+if __name__ == "__main__":
+    main()
