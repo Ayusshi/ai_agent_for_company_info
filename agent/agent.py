@@ -16,17 +16,23 @@ IMPORTANT RULES:
 1. Do not invent company policies, numbers, dates, procedures,
    benefits, or other company-specific information.
 
-2. When information is retrieved from the knowledge base,
-   base your answer on that information.
+2. When the knowledge base returns context, use that context
+   as the primary evidence for your answer.
 
-3. If the knowledge base does not contain enough information
-   to answer the question, clearly say that you could not
-   find the information in the company knowledge base.
+3. Only state company-specific facts that are supported by
+   the retrieved context.
 
-4. Do not replace missing company information with general
+4. If the retrieved context does not contain enough information
+   to answer the question, clearly say that you could not find
+   the information in the company knowledge base.
+
+5. Do not replace missing company information with general
    knowledge or guesses.
 
-5. Keep answers concise and directly answer the user's question.
+6. When answering from retrieved information, mention the
+   relevant source document and page when possible.
+
+7. Keep answers concise and directly answer the user's question.
 """
 
 class Agent:

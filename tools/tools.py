@@ -25,25 +25,36 @@ def search_knowledge_base(query: str):
 
         return {
             "found": False,
+            "context": "",
+            "sources": [],
             "message": (
                 "No relevant information was found "
                 "in the company knowledge base."
             ),
         }
 
-    formatted_results = []
+    context_parts = []
+    sources = []
 
     for result in results:
 
-        formatted_results.append({
+        context_parts.append(
+            f"SOURCE: {result['source']}\n"
+            f"PAGE: {result['page']}\n\n"
+            f"{result['text']}"
+        )
+
+        sources.append({
             "source": result["source"],
             "page": result["page"],
-            "content": result["text"],
         })
+
+    context = "\n\n---\n\n".join(context_parts)
 
     return {
         "found": True,
-        "results": formatted_results,
+        "context": context,
+        "sources": sources,
     }
 
 
