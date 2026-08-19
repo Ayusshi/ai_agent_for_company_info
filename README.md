@@ -1,37 +1,21 @@
-company-ai-agent/
-│
-├── configs/
-│   └── config.yaml
-│
-├── src/
-│   ├── api/
-│   │   └── routes.py
-│   │
-│   ├── agent/
-│   │   ├── agent.py
-│   │   ├── state.py
-│   │   └── router.py
-│   │
-│   ├── tools/
-│   │   ├── company_search.py
-│   │   ├── web_search.py
-│   │   ├── news_search.py
-│   │   └── rag_retriever.py
-│   │
-│   ├── llm/
-│   │   └── client.py
-│   │
-│   ├── services/
-│   │   └── ...
-│   │
-│   └── utils/
-│       └── ...
-│
-├── tests/
-│
-├── scripts/
-│
-├── Dockerfile
-├── requirements.txt
-├── .env.example
-└── README.md
+# AI Agent for Company Information
+
+A production-oriented AI agent that answers company-related questions using
+Retrieval-Augmented Generation (RAG), LangChain, and LangGraph.
+
+The system combines a persistent FAISS-based knowledge base with an
+LLM-powered agent that can dynamically choose between document retrieval
+and other tools such as a calculator.
+
+---
+
+## Overview
+
+Traditional RAG systems follow a fixed pipeline:
+
+```text
+User Question
+      ↓
+Retrieve Documents
+      ↓
+Generate Answer

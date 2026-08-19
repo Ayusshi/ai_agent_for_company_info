@@ -1,31 +1,41 @@
-from agent.agent import Agent
+from agent.agent import ask_agent
 
 
 def main():
 
-    agent = Agent()
-
-    print("\n" + "=" * 60)
-    print("NexaCore Company Information Agent")
     print("=" * 60)
+    print("AI COMPANY ASSISTANT")
+    print("=" * 60)
+
+    print(
+        "\nType 'exit' to quit."
+    )
 
     while True:
 
-        user_input = input("\nYou: ")
+        question = input(
+            "\nYou: "
+        )
 
-        if user_input.lower() in {"exit", "quit"}:
-            print("\nGoodbye!")
+        if question.lower().strip() == "exit":
             break
 
         try:
 
-            answer = agent.run(user_input)
+            answer = ask_agent(
+                question=question,
+                thread_id="cli-session",
+            )
 
-            print(f"\nAgent: {answer}")
+            print(
+                f"\nAssistant: {answer}"
+            )
 
-        except Exception as e:
+        except Exception as error:
 
-            print(f"\nError: {e}")
+            print(
+                f"\nError: {error}"
+            )
 
 
 if __name__ == "__main__":

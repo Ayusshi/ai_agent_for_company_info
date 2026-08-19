@@ -1,148 +1,318 @@
-from llm_client import LLMClient
-from tools.tool_definition import tools
-from tools.tools import TOOL_REGISTRY
+from pathlib import Path
+from typing import TypedDict
 
-SYSTEM_PROMPT = """
-You are the NexaCore Technologies Company Information Assistant.
+from pydantic import BaseModel
 
-Your job is to answer questions using information from the
-company knowledge base.
+from langchain_ollama import ChatOllama
 
-When a question requires company-specific information,
-use the search_knowledge_base tool.
+from langchain_core.messages import (
+    HumanMessage,
+    SystemMessage,
+)
 
-IMPORTANT RULES:
+from langchain_core.tools import tool
 
-1. Do not invent company policies, numbers, dates, procedures,
-   benefits, or other company-specific information.
+from langgraph.graph import (
+    StateGraph,
+    START,
+    END,
+    MessagesState,
+)
 
-2. When the knowledge base returns context, use that context
-   as the primary evidence for your answer.
+from langgraph.prebuilt import (
+    ToolNode,
+    tools_condition,
+)
 
-3. Only state company-specific facts that are supported by
-   the retrieved context.
+from langgraph.checkpoint.memory import (
+    InMemorySaver,
+)
 
-4. If the retrieved context does not contain enough information
-   to answer the question, clearly say that you could not find
-   the information in the company knowledge base.
+from knowledge.knowledge_base import KnowledgeBase
 
-5. Do not replace missing company information with general
-   knowledge or guesses.
 
-6. When answering from retrieved information, mention the
-   relevant source document and page when possible.
+# ============================================================
+# Paths
+# ============================================================
 
-7. Keep answers concise and directly answer the user's question.
-"""
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-class Agent:
+DOCUMENTS_DIR = PROJECT_ROOT / "data" / "documents"
 
-    def __init__(self):
-        self.llm = LLMClient(model="llama3.2:3b")
-        self.tools = tools
-        self.messages = [
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT,
-            }
-        ]
 
-    def run(self, user_input: str):
+# ============================================================
+# Knowledge Base
+# ============================================================
 
-        # --------------------------------------------
-        # Add user message to agent state
-        # --------------------------------------------
+knowledge_base = KnowledgeBase(
+    documents_dir=str(DOCUMENTS_DIR),
+    index_dir=str(
+        PROJECT_ROOT / "data" / "index"
+    ),
+    retrieval_k=3,
+    retrieval_threshold=0.5,
+)
 
-        self.messages.append({
-            "role": "user",
-            "content": user_input
-        })
 
-        max_steps = 10
+# ============================================================
+# LLM
+# ============================================================
 
-        for step in range(max_steps):
+llm = ChatOllama(
+    model="llama3.2:3b",
+    temperature=0,
+)
 
-            response = self.llm.chat(
-                messages=self.messages,
-                tools=self.tools,
-            )
 
-            message = response["message"]
+# ============================================================
+# Tool Input Schema
+# ============================================================
 
-            tool_calls = message.get("tool_calls", [])
+class SearchKnowledgeBaseInput(BaseModel):
+    query: str
 
-            # --------------------------------------------
-            # No tool call = final answer
-            # --------------------------------------------
 
-            if not tool_calls:
+# ============================================================
+# RAG Tool
+# ============================================================
 
-                # Store assistant's final response
-                self.messages.append(message)
+@tool(args_schema=SearchKnowledgeBaseInput)
+def search_knowledge_base(query: str) -> str:
+    """
+    Search the company knowledge base for information
+    contained in internal company documents.
 
-                return message["content"]
+    Use this tool when the user asks about company
+    policies, procedures, employee information,
+    security, expenses, leave, remote work, or other
+    company-specific information.
+    """
 
-            # --------------------------------------------
-            # Store assistant's tool-call message
-            # --------------------------------------------
+    results = knowledge_base.search(query)
 
-            self.messages.append(message)
-
-            for tool_call in tool_calls:
-
-                tool_name = tool_call["function"]["name"]
-                arguments = tool_call["function"]["arguments"]
-
-                print(f"\n--- Agent Step {step + 1} ---")
-                print("Tool requested:", tool_name)
-                print("Arguments:", arguments)
-
-                # ----------------------------------------
-                # Check whether tool exists
-                # ----------------------------------------
-
-                if tool_name not in TOOL_REGISTRY:
-
-                    result = {
-                        "error": f"Unknown tool: {tool_name}"
-                    }
-
-                else:
-
-                    tool_info = TOOL_REGISTRY[tool_name]
-
-                    tool_function = tool_info["function"]
-                    tool_schema = tool_info["schema"]
-
-                    try:
-
-                        validated_arguments = tool_schema(**arguments)
-
-                        result = tool_function(
-                            **validated_arguments.model_dump()
-                        )
-
-                    except Exception as e:
-
-                        result = {
-                            "error": str(e)
-                        }
-
-                print("Tool result:", result)
-
-                # ----------------------------------------
-                # Add tool result to agent state
-                # ----------------------------------------
-
-                self.messages.append({
-                    "role": "tool",
-                    "content": str(result),
-                })
-
-        # --------------------------------------------
-        # Maximum number of agent steps reached
-        # --------------------------------------------
-
-        raise RuntimeError(
-            "Agent exceeded maximum number of steps."
+    if not results:
+        return (
+            "No relevant information was found in the "
+            "company knowledge base."
         )
+
+    formatted_results = []
+
+    for result in results:
+
+        formatted_results.append(
+            (
+                f"Source: {result['source']}\n"
+                f"Page: {result['page']}\n"
+                f"Score: {result['score']:.3f}\n"
+                f"Content:\n{result['text']}"
+            )
+        )
+
+    return "\n\n---\n\n".join(
+        formatted_results
+    )
+
+
+# ============================================================
+# Calculator Tool
+# ============================================================
+
+@tool
+def calculator(expression: str) -> str:
+    """
+    Calculate a mathematical expression.
+
+    Use this tool when arithmetic or numerical
+    calculation is required.
+    """
+
+    try:
+
+        result = eval(expression)
+
+        return str(result)
+
+    except Exception:
+
+        return (
+            "Unable to calculate the expression."
+        )
+
+
+# ============================================================
+# Tools
+# ============================================================
+
+tools = [
+    search_knowledge_base,
+    calculator,
+]
+
+
+# ============================================================
+# LLM with Tools
+# ============================================================
+
+llm_with_tools = llm.bind_tools(
+    tools
+)
+
+
+# ============================================================
+# Agent State
+# ============================================================
+
+class AgentState(MessagesState):
+    pass
+
+
+# ============================================================
+# Model Node
+# ============================================================
+
+def call_model(state: AgentState):
+
+    system_message = SystemMessage(
+        content=(
+            "You are a helpful company assistant.\n\n"
+
+            "You have access to the following tools:\n\n"
+
+            "1. search_knowledge_base:\n"
+            "Searches internal company documents.\n\n"
+
+            "2. calculator:\n"
+            "Performs mathematical calculations.\n\n"
+
+            "Use search_knowledge_base when the user "
+            "asks about company-specific information.\n\n"
+
+            "Use calculator when arithmetic is required.\n\n"
+
+            "Do not use tools unnecessarily.\n\n"
+
+            "When answering company-specific questions, "
+            "use information returned by the knowledge "
+            "base and do not invent facts."
+        )
+    )
+
+    messages = [
+        system_message,
+        *state["messages"],
+    ]
+
+    response = llm_with_tools.invoke(
+        messages
+    )
+
+    return {
+        "messages": [response]
+    }
+
+
+# ============================================================
+# Build Graph
+# ============================================================
+
+graph = StateGraph(
+    AgentState
+)
+
+
+# ------------------------------------------------------------
+# Model
+# ------------------------------------------------------------
+
+graph.add_node(
+    "model",
+    call_model,
+)
+
+
+# ------------------------------------------------------------
+# Tools
+# ------------------------------------------------------------
+
+graph.add_node(
+    "tools",
+    ToolNode(tools),
+)
+
+
+# ------------------------------------------------------------
+# START → MODEL
+# ------------------------------------------------------------
+
+graph.add_edge(
+    START,
+    "model",
+)
+
+
+# ------------------------------------------------------------
+# MODEL → TOOLS or END
+# ------------------------------------------------------------
+
+graph.add_conditional_edges(
+    "model",
+    tools_condition,
+    {
+        "tools": "tools",
+        END: END,
+    },
+)
+
+
+# ------------------------------------------------------------
+# TOOLS → MODEL
+# ------------------------------------------------------------
+
+graph.add_edge(
+    "tools",
+    "model",
+)
+
+
+# ============================================================
+# Checkpointing
+# ============================================================
+
+checkpointer = InMemorySaver()
+
+
+# ============================================================
+# Compile Agent
+# ============================================================
+
+agent = graph.compile(
+    checkpointer=checkpointer
+)
+
+
+# ============================================================
+# Public Function
+# ============================================================
+
+def ask_agent(
+    question: str,
+    thread_id: str = "default",
+):
+
+    result = agent.invoke(
+        {
+            "messages": [
+                HumanMessage(
+                    content=question
+                )
+            ]
+        },
+        {
+            "configurable": {
+                "thread_id": thread_id
+            }
+        },
+    )
+
+    return result["messages"][-1].content
